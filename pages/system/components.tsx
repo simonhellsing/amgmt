@@ -379,13 +379,13 @@ function ButtonPreview({ component }: { component: ComponentMetadata }) {
           <div className="flex flex-wrap gap-6 items-center">
             {component.sizes.map((size) => (
               <div key={size} className="space-y-3">
-                <Button variant={variant.name as any} size={size}>
+                <Button variant={variant.name as any} size={size as "lg" | "sm" | "md" | undefined}>
                   {variant.name} {size}
                 </Button>
-                <Button variant={variant.name as any} size={size} loading>
+                <Button variant={variant.name as any} size={size as "lg" | "sm" | "md" | undefined} loading>
                   Loading
                 </Button>
-                <Button variant={variant.name as any} size={size} disabled>
+                <Button variant={variant.name as any} size={size as "lg" | "sm" | "md" | undefined} disabled>
                   Disabled
                 </Button>
               </div>
@@ -406,12 +406,12 @@ function IconButtonPreview({ component }: { component: ComponentMetadata }) {
           <div className="flex flex-wrap gap-6 items-center">
             {component.sizes.map((size) => (
               <React.Fragment key={size}>
-                <IconButton variant={variant.name as any} size={size} icon={Settings} aria-label="Settings" />
-                <IconButton variant={variant.name as any} size={size} icon={Settings}>
+                <IconButton variant={variant.name as any} size={size as "lg" | "sm" | "md" | undefined} icon={Settings} aria-label="Settings" />
+                <IconButton variant={variant.name as any} size={size as "lg" | "sm" | "md" | undefined} icon={Settings}>
                   With Text
                 </IconButton>
-                <IconButton variant={variant.name as any} size={size} icon={Settings} loading aria-label="Loading" />
-                <IconButton variant={variant.name as any} size={size} icon={Settings} disabled aria-label="Disabled" />
+                <IconButton variant={variant.name as any} size={size as "lg" | "sm" | "md" | undefined} icon={Settings} loading aria-label="Loading" />
+                <IconButton variant={variant.name as any} size={size as "lg" | "sm" | "md" | undefined} icon={Settings} disabled aria-label="Disabled" />
               </React.Fragment>
             ))}
           </div>
@@ -430,10 +430,10 @@ function LinkButtonPreview({ component }: { component: ComponentMetadata }) {
           <div className="flex flex-wrap gap-6 items-center">
             {component.sizes.map((size) => (
               <React.Fragment key={size}>
-                <LinkButton href="#" variant={variant.name as any} size={size}>
+                <LinkButton href="#" variant={variant.name as any} size={size as "lg" | "sm" | "md" | undefined}>
                   {variant.name} {size}
                 </LinkButton>
-                <LinkButton href="#" variant={variant.name as any} size={size} disabled>
+                <LinkButton href="#" variant={variant.name as any} size={size as "lg" | "sm" | "md" | undefined} disabled>
                   Disabled
                 </LinkButton>
               </React.Fragment>
@@ -453,11 +453,11 @@ function InputPreview({ component }: { component: ComponentMetadata }) {
           <div>
             <h4 className="text-xs font-semibold text-gray-400 mb-4 uppercase">{size} Size</h4>
             <div className="space-y-4">
-              <Input label="Default" size={size} placeholder="Enter text..." />
-              <Input label="With Error" size={size} error="This field is required" />
-              <Input label="With Success" size={size} success="Looks good!" />
-              <Input label="Disabled" size={size} disabled value="Disabled input" />
-              <Input label="Password" type="password" size={size} showPasswordToggle />
+              <Input label="Default" size={size as "lg" | "sm" | "md" | undefined} placeholder="Enter text..." />
+              <Input label="With Error" size={size as "lg" | "sm" | "md" | undefined} error="This field is required" />
+              <Input label="With Success" size={size as "lg" | "sm" | "md" | undefined} success="Looks good!" />
+              <Input label="Disabled" size={size as "lg" | "sm" | "md" | undefined} disabled value="Disabled input" />
+              <Input label="Password" type="password" size={size as "lg" | "sm" | "md" | undefined} showPasswordToggle />
             </div>
           </div>
         </div>
@@ -483,10 +483,10 @@ function CheckboxPreview({ component }: { component: ComponentMetadata }) {
         <div key={size}>
           <h4 className="text-xs font-semibold text-gray-400 mb-4 uppercase">{size} Size</h4>
           <div className="space-y-3">
-            <Checkbox label="Default" size={size} />
-            <Checkbox label="Checked" size={size} checked />
-            <Checkbox label="Indeterminate" size={size} indeterminate />
-            <Checkbox label="Disabled" size={size} disabled />
+            <Checkbox label="Default" size={size as "lg" | "sm" | "md" | undefined} />
+            <Checkbox label="Checked" size={size as "lg" | "sm" | "md" | undefined} checked />
+            <Checkbox label="Indeterminate" size={size as "lg" | "sm" | "md" | undefined} indeterminate />
+            <Checkbox label="Disabled" size={size as "lg" | "sm" | "md" | undefined} disabled />
           </div>
         </div>
       ))}
@@ -507,8 +507,8 @@ function SelectPreview({ component }: { component: ComponentMetadata }) {
         <div key={size}>
           <h4 className="text-xs font-semibold text-gray-400 mb-4 uppercase">{size} Size</h4>
           <div className="space-y-4">
-            <Select label="Default" size={size} options={options} placeholder="Select an option" />
-            <Select label="With Error" size={size} options={options} error="Please select an option" />
+            <Select label="Default" size={size as "lg" | "sm" | "md" | undefined} options={options} placeholder="Select an option" />
+            <Select label="With Error" size={size as "lg" | "sm" | "md" | undefined} options={options} error="Please select an option" />
           </div>
         </div>
       ))}
@@ -536,7 +536,7 @@ function BadgePreview({ component }: { component: ComponentMetadata }) {
           <h4 className="text-xs font-semibold text-gray-400 mb-4 uppercase">{size} Size</h4>
           <div className="flex flex-wrap gap-3 items-center">
             {component.variants.map((variant) => (
-              <Badge key={variant.name} variant={variant.name as any} size={size}>
+              <Badge key={variant.name} variant={variant.name as any} size={size as "lg" | "sm" | "md" | undefined}>
                 {variant.name}
               </Badge>
             ))}
@@ -552,7 +552,7 @@ function SpinnerPreview({ component }: { component: ComponentMetadata }) {
     <div className="flex gap-8 items-center">
       {component.sizes.map((size) => (
         <div key={size} className="text-center">
-          <Spinner size={size} />
+          <Spinner size={size as "lg" | "sm" | "md" | undefined} />
           <p className="text-xs text-gray-400 mt-2">{size}</p>
         </div>
       ))}

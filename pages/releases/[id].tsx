@@ -511,9 +511,7 @@ export default function ReleaseDetailPage() {
             
             // Show success toast
             success(
-              'Deliverable has been created',
-              undefined,
-              <Plus className="w-5 h-5 text-green-400" />
+              'Deliverable has been created'
             );
           }
         });
@@ -544,9 +542,7 @@ export default function ReleaseDetailPage() {
       
       // Show success toast
       success(
-        `"${deliverableToDelete.name}" has been deleted`,
-        undefined,
-        <Trash2 className="w-5 h-5 text-red-400" />
+        `"${deliverableToDelete.name}" has been deleted`
       );
       
       setDeliverableToDelete(null);
@@ -645,15 +641,11 @@ export default function ReleaseDetailPage() {
       // Show success toast
       if (deletedDeliverables.length === 1) {
         success(
-          `"${deletedDeliverables[0].name}" has been deleted`,
-          undefined,
-          <Trash2 className="w-5 h-5 text-red-400" />
+          `"${deletedDeliverables[0].name}" has been deleted`
         );
       } else {
         success(
-          `${deletedDeliverables.length} deliverables have been deleted`,
-          undefined,
-          <Trash2 className="w-5 h-5 text-red-400" />
+          `${deletedDeliverables.length} deliverables have been deleted`
         );
       }
       
@@ -749,15 +741,11 @@ export default function ReleaseDetailPage() {
       if (uploadedFiles.length > 0) {
         if (uploadedFiles.length === 1) {
           success(
-            `"${uploadedFiles[0]}" has been uploaded`,
-            undefined,
-            <Upload className="w-5 h-5 text-green-400" />
+            `"${uploadedFiles[0]}" has been uploaded`
           );
         } else {
           success(
-            `${uploadedFiles.length} files have been uploaded`,
-            undefined,
-            <Upload className="w-5 h-5 text-green-400" />
+            `${uploadedFiles.length} files have been uploaded`
           );
         }
       }
@@ -843,15 +831,11 @@ export default function ReleaseDetailPage() {
       // Show success toast
       if (selectedDeliverables.length === 1) {
         success(
-          `"${selectedDeliverables[0].name}" has been duplicated`,
-          undefined,
-          <Plus className="w-5 h-5 text-green-400" />
+          `"${selectedDeliverables[0].name}" has been duplicated`
         );
       } else {
         success(
-          `${selectedDeliverables.length} deliverables have been duplicated`,
-          undefined,
-          <Plus className="w-5 h-5 text-green-400" />
+          `${selectedDeliverables.length} deliverables have been duplicated`
         );
       }
       
@@ -968,9 +952,7 @@ export default function ReleaseDetailPage() {
       // Show success toast
       const selectedCount = selectedDeliverableIds.length;
       success(
-        `All assets in ${selectedCount} deliverable${selectedCount > 1 ? 's' : ''} marked as final`,
-        undefined,
-        <Check className="w-5 h-5 text-green-400" />
+        `All assets in ${selectedCount} deliverable${selectedCount > 1 ? 's' : ''} marked as final`
       );
       
     } catch (err) {
@@ -1044,9 +1026,7 @@ export default function ReleaseDetailPage() {
       
       // Show success toast
       success(
-        `${defaultDeliverables.length} suggested deliverables have been added`,
-        undefined,
-        <Plus className="w-5 h-5 text-green-400" />
+        `${defaultDeliverables.length} suggested deliverables have been added`
       );
 
     } catch (err) {

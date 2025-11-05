@@ -481,15 +481,11 @@ export default function DeliverableDetailPage() {
       if (uploadedFiles.length > 0) {
         if (uploadedFiles.length === 1) {
           success(
-            `"${uploadedFiles[0]}" has been uploaded`,
-            undefined,
-            <Upload className="w-5 h-5 text-green-400" />
+            `"${uploadedFiles[0]}" has been uploaded`
           );
         } else {
           success(
-            `${uploadedFiles.length} files have been uploaded`,
-            undefined,
-            <Upload className="w-5 h-5 text-green-400" />
+            `${uploadedFiles.length} files have been uploaded`
           );
         }
       }
@@ -1474,15 +1470,11 @@ export default function DeliverableDetailPage() {
                             const deletedCount = filesToDelete.length;
                             if (deletedCount === 1) {
                               success(
-                                `"${filesToDelete[0].name}" has been deleted`,
-                                undefined,
-                                <Trash2 className="w-5 h-5 text-red-400" />
+                                `"${filesToDelete[0].name}" has been deleted`
                               );
                             } else {
                               success(
-                                `${deletedCount} files have been deleted`,
-                                undefined,
-                                <Trash2 className="w-5 h-5 text-red-400" />
+                                `${deletedCount} files have been deleted`
                               );
                             }
 

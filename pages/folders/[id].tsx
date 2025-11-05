@@ -396,24 +396,18 @@ export default function FolderDetailPage() {
       if (uploadedFiles.length > 0) {
         if (uploadedFiles.length === 1) {
           success(
-            `"${uploadedFiles[0]}" has been uploaded`,
-            undefined,
-            <Upload className="w-5 h-5 text-green-400" />
+            `"${uploadedFiles[0]}" has been uploaded`
           );
         } else {
           success(
-            `${uploadedFiles.length} files have been uploaded`,
-            undefined,
-            <Upload className="w-5 h-5 text-green-400" />
+            `${uploadedFiles.length} files have been uploaded`
           );
         }
       }
 
       if (failedFiles.length > 0) {
         error(
-          `Failed to upload ${failedFiles.length} file${failedFiles.length > 1 ? 's' : ''}`,
-          undefined,
-          <X className="w-5 h-5 text-red-400" />
+          `Failed to upload ${failedFiles.length} file${failedFiles.length > 1 ? 's' : ''}`
         );
       }
     } catch (err) {
@@ -886,15 +880,11 @@ export default function FolderDetailPage() {
                               const deletedCount = filesToDelete.length;
                               if (deletedCount === 1) {
                                 success(
-                                  `"${filesToDelete[0].name}" has been deleted`,
-                                  undefined,
-                                  <Trash2 className="w-5 h-5 text-red-400" />
+                                  `"${filesToDelete[0].name}" has been deleted`
                                 );
                               } else {
                                 success(
-                                  `${deletedCount} files have been deleted`,
-                                  undefined,
-                                  <Trash2 className="w-5 h-5 text-red-400" />
+                                  `${deletedCount} files have been deleted`
                                 );
                               }
 

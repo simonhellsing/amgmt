@@ -379,9 +379,7 @@ export default function ArtistDetailPage() {
               preselectedArtistId={artist.id}
               onReleaseCreated={(release) => {
                 success(
-                  `"${release.title}" has been created`,
-                  undefined,
-                  <Music className="w-5 h-5 text-green-400" />
+                  `"${release.title}" has been created`
                 );
               }}
             />
@@ -394,9 +392,7 @@ export default function ArtistDetailPage() {
               artistId={artist.id}
               onFolderCreated={(folder) => {
                 success(
-                  `"${folder.name}" folder has been created`,
-                  undefined,
-                  <Folder className="w-5 h-5 text-blue-400" />
+                  `"${folder.name}" folder has been created`
                 );
               }}
             />

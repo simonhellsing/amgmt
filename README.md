@@ -1,4 +1,6 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/pages/api-reference/create-next-app).
+# AMGMT
+
+A music management application built with [Next.js](https://nextjs.org) for managing artists, releases, and deliverables.
 
 ## Getting Started
 

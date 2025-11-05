@@ -1,0 +1,232 @@
+/**
+ * Design Tokens
+ * Single source of truth for all design values.
+ * Never use hard-coded values in components - always reference these tokens.
+ */
+
+:root {
+  /* ===== COLORS ===== */
+  
+  /* Grays (neutral backgrounds, borders, text) */
+  --color-gray-50: #F9F9F9;
+  --color-gray-100: #E9E9E9;
+  --color-gray-200: #CDCDCD;
+  --color-gray-300: #A5A5A5;
+  --color-gray-400: #767676;
+  --color-gray-500: #5F5F5F;
+  --color-gray-600: #4A4A4A;
+  --color-gray-700: #383838;
+  --color-gray-800: #2B2B2B;
+  --color-gray-900: #1E1E1E;
+  --color-gray-950: #181818;
+  
+  /* System colors (semantic states) */
+  --color-blue-50: #EFF6FF;
+  --color-blue-500: #3B82F6;
+  --color-blue-600: #2563EB;
+  --color-blue-700: #1D4ED8;
+  
+  --color-green-50: #F0FDF4;
+  --color-green-500: #22C55E;
+  --color-green-600: #16A34A;
+  --color-green-700: #15803D;
+  
+  --color-red-50: #FEF2F2;
+  --color-red-500: #EF4444;
+  --color-red-600: #DC2626;
+  --color-red-700: #B91C1C;
+  
+  --color-yellow-50: #FEFCE8;
+  --color-yellow-500: #EAB308;
+  --color-yellow-600: #CA8A04;
+  --color-yellow-700: #A16207;
+  
+  /* Semantic color aliases */
+  --color-success: var(--color-green-500);
+  --color-success-hover: var(--color-green-600);
+  --color-success-bg: var(--color-green-50);
+  
+  --color-error: var(--color-red-500);
+  --color-error-hover: var(--color-red-600);
+  --color-error-bg: var(--color-red-50);
+  
+  --color-warning: var(--color-yellow-500);
+  --color-warning-hover: var(--color-yellow-600);
+  --color-warning-bg: var(--color-yellow-50);
+  
+  --color-info: var(--color-blue-500);
+  --color-info-hover: var(--color-blue-600);
+  --color-info-bg: var(--color-blue-50);
+  
+  /* Background & surface colors */
+  --color-background: var(--color-gray-900);
+  --color-surface: var(--color-gray-800);
+  --color-surface-hover: var(--color-gray-700);
+  
+  /* Text colors */
+  --color-text-primary: #FFFFFF;
+  --color-text-secondary: var(--color-gray-300);
+  --color-text-tertiary: var(--color-gray-400);
+  --color-text-disabled: var(--color-gray-500);
+  --color-text-inverse: var(--color-gray-900);
+  
+  /* Border colors */
+  --color-border: var(--color-gray-700);
+  --color-border-hover: var(--color-gray-600);
+  --color-border-focus: var(--color-gray-500);
+  
+  
+  /* ===== SPACING ===== */
+  --space-0: 0;
+  --space-1: 0.25rem;    /* 4px */
+  --space-2: 0.5rem;     /* 8px */
+  --space-3: 0.75rem;    /* 12px */
+  --space-4: 1rem;       /* 16px */
+  --space-5: 1.25rem;    /* 20px */
+  --space-6: 1.5rem;     /* 24px */
+  --space-8: 2rem;       /* 32px */
+  --space-10: 2.5rem;    /* 40px */
+  --space-12: 3rem;      /* 48px */
+  --space-16: 4rem;      /* 64px */
+  --space-20: 5rem;      /* 80px */
+  --space-24: 6rem;      /* 96px */
+  
+  
+  /* ===== TYPOGRAPHY ===== */
+  --font-family-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+  --font-family-mono: 'Menlo', 'Monaco', 'Courier New', monospace;
+  
+  /* Font sizes */
+  --font-size-xs: 0.75rem;     /* 12px */
+  --font-size-sm: 0.875rem;    /* 14px */
+  --font-size-base: 1rem;      /* 16px */
+  --font-size-lg: 1.125rem;    /* 18px */
+  --font-size-xl: 1.25rem;     /* 20px */
+  --font-size-2xl: 1.5rem;     /* 24px */
+  --font-size-3xl: 1.875rem;   /* 30px */
+  --font-size-4xl: 2.25rem;    /* 36px */
+  --font-size-5xl: 3rem;       /* 48px */
+  
+  /* Font weights */
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+  
+  /* Line heights */
+  --line-height-tight: 1.25;
+  --line-height-normal: 1.5;
+  --line-height-relaxed: 1.75;
+  
+  
+  /* ===== RADIUS ===== */
+  --radius-none: 0;
+  --radius-sm: 0.25rem;    /* 4px */
+  --radius-md: 0.5rem;     /* 8px */
+  --radius-lg: 0.75rem;    /* 12px */
+  --radius-xl: 1rem;       /* 16px */
+  --radius-full: 9999px;
+  
+  
+  /* ===== BORDERS ===== */
+  --border-width-0: 0;
+  --border-width-1: 1px;
+  --border-width-2: 2px;
+  --border-width-4: 4px;
+  
+  
+  /* ===== SHADOWS ===== */
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+  --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+  
+  
+  /* ===== FOCUS RING ===== */
+  --focus-ring-width: 2px;
+  --focus-ring-offset: 2px;
+  --focus-ring-color: var(--color-gray-500);
+  
+  
+  /* ===== MOTION ===== */
+  --duration-fast: 100ms;
+  --duration-normal: 200ms;
+  --duration-slow: 300ms;
+  --duration-slower: 500ms;
+  
+  --ease-in: cubic-bezier(0.4, 0, 1, 1);
+  --ease-out: cubic-bezier(0, 0, 0.2, 1);
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+  
+  
+  /* ===== Z-INDEX ===== */
+  --z-base: 0;
+  --z-dropdown: 1000;
+  --z-sticky: 1100;
+  --z-fixed: 1200;
+  --z-modal-backdrop: 1300;
+  --z-modal: 1400;
+  --z-popover: 1500;
+  --z-tooltip: 1600;
+  --z-notification: 1700;
+  
+  
+  /* ===== COMPONENT-SPECIFIC TOKENS ===== */
+  
+  /* Button */
+  --button-padding-x-sm: var(--space-3);
+  --button-padding-y-sm: var(--space-1.5);
+  --button-padding-x-md: var(--space-4);
+  --button-padding-y-md: var(--space-2);
+  --button-padding-x-lg: var(--space-6);
+  --button-padding-y-lg: var(--space-3);
+  
+  /* Input */
+  --input-height-sm: 2rem;        /* 32px */
+  --input-height-md: 2.5rem;      /* 40px */
+  --input-height-lg: 3rem;        /* 48px */
+  --input-padding-x: var(--space-3);
+  
+  /* Card */
+  --card-padding: var(--space-6);
+  --card-radius: var(--radius-lg);
+  
+  /* Modal */
+  --modal-max-width-sm: 24rem;    /* 384px */
+  --modal-max-width-md: 32rem;    /* 512px */
+  --modal-max-width-lg: 42rem;    /* 672px */
+  --modal-max-width-xl: 56rem;    /* 896px */
+}
+
+/* Dark theme adjustments (if needed in future) */
+[data-theme="dark"] {
+  /* All tokens are already dark by default */
+}
+
+/* Light theme (for future use) */
+[data-theme="light"] {
+  --color-background: #FFFFFF;
+  --color-surface: var(--color-gray-50);
+  --color-surface-hover: var(--color-gray-100);
+  
+  --color-text-primary: var(--color-gray-900);
+  --color-text-secondary: var(--color-gray-700);
+  --color-text-tertiary: var(--color-gray-600);
+  --color-text-disabled: var(--color-gray-400);
+  --color-text-inverse: #FFFFFF;
+  
+  --color-border: var(--color-gray-200);
+  --color-border-hover: var(--color-gray-300);
+  --color-border-focus: var(--color-gray-400);
+}
+
+/* Reduced motion preference */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --duration-fast: 0ms;
+    --duration-normal: 0ms;
+    --duration-slow: 0ms;
+    --duration-slower: 0ms;
+  }
+}
+

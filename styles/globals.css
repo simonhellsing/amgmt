@@ -232,6 +232,42 @@
 
 @import "tailwindcss";
 
+/* Tailwind v4 theme configuration - maps CSS variables to Tailwind utilities */
+@theme {
+  /* Color mappings for Tailwind utilities */
+  --color-gray-50: #F9F9F9;
+  --color-gray-100: #E9E9E9;
+  --color-gray-200: #CDCDCD;
+  --color-gray-300: #A5A5A5;
+  --color-gray-400: #767676;
+  --color-gray-500: #5F5F5F;
+  --color-gray-600: #4A4A4A;
+  --color-gray-700: #383838;
+  --color-gray-800: #2B2B2B;
+  --color-gray-900: #1E1E1E;
+  --color-gray-950: #181818;
+  
+  --color-blue-50: #EFF6FF;
+  --color-blue-500: #3B82F6;
+  --color-blue-600: #2563EB;
+  --color-blue-700: #1D4ED8;
+  
+  --color-green-50: #F0FDF4;
+  --color-green-500: #22C55E;
+  --color-green-600: #16A34A;
+  --color-green-700: #15803D;
+  
+  --color-red-50: #FEF2F2;
+  --color-red-500: #EF4444;
+  --color-red-600: #DC2626;
+  --color-red-700: #B91C1C;
+  
+  --color-yellow-50: #FEFCE8;
+  --color-yellow-500: #EAB308;
+  --color-yellow-600: #CA8A04;
+  --color-yellow-700: #A16207;
+}
+
 body {
   background: var(--color-background);
   color: var(--color-text-primary);

@@ -25,12 +25,11 @@ export default function AudioWaveform({
   const [waveformData, setWaveformData] = useState<number[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [currentProgress, setCurrentProgress] = useState(0);
-  const animationFrameRef = useRef<number>();
+  const animationFrameRef = useRef<number | null>(null);
 
   // Load and analyze audio
   useEffect(() => {
     let audioContext: AudioContext | null = null;
-    let source: AudioBufferSourceNode | null = null;
 
     const loadAudio = async () => {
       try {
@@ -74,9 +73,6 @@ export default function AudioWaveform({
     loadAudio();
 
     return () => {
-      if (source) {
-        source.disconnect();
-      }
       if (audioContext) {
         audioContext.close();
       }

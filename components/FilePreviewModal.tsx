@@ -65,6 +65,7 @@ interface DeliverableFile {
 interface FileVersion {
   id: string;
   name: string;
+  parent_file_id?: string | null;
   file_url: string;
   file_type?: string;
   file_size?: number;
@@ -1904,11 +1905,21 @@ export default function FilePreviewModal({
           return;
         }
         
-        newCommentData = fallbackData;
+        newCommentData = {
+          ...fallbackData,
+          version_number: undefined,
+          container_file_id: undefined
+        } as typeof newCommentData;
         error = null;
       } else if (error) {
         console.error('Error posting comment:', error);
         alert('Error posting comment: ' + error.message);
+        setPostingComment(false);
+        return;
+      }
+
+      if (!newCommentData) {
+        console.error('No comment data returned');
         setPostingComment(false);
         return;
       }

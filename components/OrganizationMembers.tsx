@@ -10,13 +10,13 @@ import {
   Eye, 
   Edit, 
   Trash2, 
-  MoreVertical,
   Check,
   X,
-  Crown
+  Crown,
+  ChevronRight
 } from 'lucide-react';
 import { useToast } from '@/lib/useToast';
-import { inviteUsers, revokeAccess, getAccessGrants } from '@/lib/accessControl';
+import { inviteUsers, revokeAccess, getAccessGrants, changeAccessLevel } from '@/lib/accessControl';
 
 interface OrganizationMembersProps {
   organizationId: string;
@@ -26,21 +26,32 @@ interface OrganizationMembersProps {
 
 interface Member {
   id: string;
+  userId?: string;
   email: string;
   accessLevel: 'view' | 'edit' | 'artist' | 'full';
+  role: 'Administrator' | 'Collaborator' | 'Artist';
   invitedAt: string;
   acceptedAt?: string;
   isActive: boolean;
   firstName?: string;
   lastName?: string;
   avatarUrl?: string;
+  releaseAccessCount?: number;
+  artistAccessCount?: number;
+  artistName?: string;
 }
 
-const ACCESS_LEVEL_INFO = {
-  view: { label: 'Viewer', icon: Eye, color: 'text-gray-400', description: 'Can view organization content' },
-  edit: { label: 'Editor', icon: Edit, color: 'text-blue-400', description: 'Can edit organization content' },
-  artist: { label: 'Artist', icon: Shield, color: 'text-purple-400', description: 'Artist-level permissions' },
-  full: { label: 'Admin', icon: Crown, color: 'text-yellow-400', description: 'Full administrative access' },
+const ROLE_INFO = {
+  Administrator: { label: 'Administrator', icon: Crown, color: 'text-yellow-400', description: 'Full access to all artists and releases' },
+  Collaborator: { label: 'Collaborator', icon: Edit, color: 'text-blue-400', description: 'Access to specific releases' },
+  Artist: { label: 'Artist', icon: Shield, color: 'text-purple-400', description: 'Access to all releases for one artist' },
+};
+
+const ACCESS_LEVEL_TO_ROLE: Record<string, 'Administrator' | 'Collaborator' | 'Artist'> = {
+  full: 'Administrator',
+  edit: 'Collaborator',
+  artist: 'Artist',
+  view: 'Collaborator', // Default view to Collaborator for now
 };
 
 export default function OrganizationMembers({ 
@@ -52,9 +63,10 @@ export default function OrganizationMembers({
   const [loading, setLoading] = useState(true);
   const [showInviteForm, setShowInviteForm] = useState(false);
   const [inviteEmails, setInviteEmails] = useState('');
-  const [inviteAccessLevel, setInviteAccessLevel] = useState<'view' | 'edit' | 'artist' | 'full'>('view');
+  const [inviteRole, setInviteRole] = useState<'Administrator' | 'Collaborator' | 'Artist'>('Collaborator');
   const [inviting, setInviting] = useState(false);
   const [removingMemberId, setRemovingMemberId] = useState<string | null>(null);
+  const [selectedMember, setSelectedMember] = useState<Member | null>(null);
   const toast = useToast();
 
   useEffect(() => {
@@ -67,31 +79,104 @@ export default function OrganizationMembers({
       // Get all access grants for this organization
       const grants = await getAccessGrants('organization', organizationId);
       
-      console.log('Loaded grants:', grants);
+      // Get all user IDs to fetch their profiles
+      const userIds = grants.map(g => g.userId).filter(Boolean) as string[];
       
-      // Map grants to members
-      const membersList: Member[] = grants.map((grant: any) => {
-        const accessLevel = grant.access_level as Member['accessLevel'];
+      // Fetch user profiles
+      let userProfilesMap = new Map();
+      if (userIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from('user_profiles')
+          .select('id, first_name, last_name, avatar_url')
+          .in('id', userIds);
         
-        // Log if we encounter an unexpected access level
-        if (!['view', 'edit', 'artist', 'full'].includes(accessLevel)) {
-          console.warn('Unexpected access level:', accessLevel, 'for grant:', grant);
+        if (profiles) {
+          userProfilesMap = new Map(profiles.map(p => [p.id, p]));
+        }
+      }
+      
+      // Get organization's artists to filter by
+      const { data: orgArtists } = await supabase
+        .from('artists')
+        .select('id')
+        .eq('organization_id', organizationId);
+
+      const orgArtistIds = orgArtists?.map(a => a.id) || [];
+
+      // Map grants to members and fetch their limited access
+      const membersList: Member[] = await Promise.all(grants.map(async (grant: any) => {
+        const accessLevel = grant.accessLevel as string;
+        const role = ACCESS_LEVEL_TO_ROLE[accessLevel] || 'Collaborator';
+        
+        // Get user profile data
+        const userProfile = grant.userId ? userProfilesMap.get(grant.userId) : null;
+        
+        let releaseAccessCount = 0;
+        let artistAccessCount = 0;
+        let artistName: string | undefined;
+
+        // For Collaborators and Artists, fetch their limited access
+        if (role === 'Collaborator' && grant.userId) {
+          // Count releases they have access to in this organization
+          const { data: releaseGrants } = await supabase
+            .from('access_grants')
+            .select('resource_id')
+            .eq('user_id', grant.userId)
+            .eq('resource_type', 'release')
+            .eq('is_active', true);
+
+          if (releaseGrants && releaseGrants.length > 0) {
+            const releaseIds = releaseGrants.map(g => g.resource_id);
+            // Check which releases belong to this organization
+            const { data: orgReleases } = await supabase
+              .from('release_artists')
+              .select('release_id')
+              .in('release_id', releaseIds)
+              .in('artist_id', orgArtistIds);
+
+            releaseAccessCount = new Set(orgReleases?.map(r => r.release_id) || []).size;
+          }
+        } else if (role === 'Artist' && grant.userId) {
+          // Find which artist they have access to in this organization
+          const { data: artistGrants } = await supabase
+            .from('access_grants')
+            .select('resource_id')
+            .eq('user_id', grant.userId)
+            .eq('resource_type', 'artist')
+            .eq('is_active', true)
+            .in('resource_id', orgArtistIds);
+
+          if (artistGrants && artistGrants.length > 0) {
+            artistAccessCount = artistGrants.length;
+            // Get the first artist's name
+            const { data: artistData } = await supabase
+              .from('artists')
+              .select('name')
+              .eq('id', artistGrants[0].resource_id)
+              .single();
+            
+            artistName = artistData?.name;
+          }
         }
         
         return {
           id: grant.id,
+          userId: grant.userId,
           email: grant.email,
-          accessLevel: accessLevel || 'view',
-          invitedAt: grant.invited_at,
-          acceptedAt: grant.accepted_at,
-          isActive: grant.is_active,
-          firstName: grant.user_first_name,
-          lastName: grant.user_last_name,
-          avatarUrl: grant.user_avatar_url,
+          accessLevel: (accessLevel || 'view') as Member['accessLevel'],
+          role: role,
+          invitedAt: grant.invitedAt,
+          acceptedAt: grant.acceptedAt,
+          isActive: grant.isActive,
+          firstName: userProfile?.first_name,
+          lastName: userProfile?.last_name,
+          avatarUrl: userProfile?.avatar_url,
+          releaseAccessCount,
+          artistAccessCount,
+          artistName,
         };
-      });
+      }));
 
-      console.log('Processed members:', membersList);
       setMembers(membersList);
     } catch (error) {
       console.error('Error loading members:', error);
@@ -99,6 +184,12 @@ export default function OrganizationMembers({
     } finally {
       setLoading(false);
     }
+  };
+
+  const getAccessLevelForRole = (role: 'Administrator' | 'Collaborator' | 'Artist'): 'view' | 'edit' | 'artist' | 'full' => {
+    if (role === 'Administrator') return 'full';
+    if (role === 'Artist') return 'artist';
+    return 'edit';
   };
 
   const handleInvite = async () => {
@@ -124,11 +215,13 @@ export default function OrganizationMembers({
         return;
       }
 
+      const accessLevel = getAccessLevelForRole(inviteRole);
+
       const result = await inviteUsers({
         resourceType: 'organization',
         resourceId: organizationId,
         emails: emailList,
-        accessLevel: inviteAccessLevel,
+        accessLevel: accessLevel,
         resourceName: organizationName,
         resourceDescription: 'organization',
       });
@@ -166,11 +259,30 @@ export default function OrganizationMembers({
       await revokeAccess({ grantId: memberId });
       toast.success('Member removed successfully');
       await loadMembers();
+      if (selectedMember?.id === memberId) {
+        setSelectedMember(null);
+      }
     } catch (error) {
       console.error('Error removing member:', error);
       toast.error('Failed to remove member');
     } finally {
       setRemovingMemberId(null);
+    }
+  };
+
+  const handleChangeRole = async (memberId: string, newRole: 'Administrator' | 'Collaborator' | 'Artist') => {
+    try {
+      const newAccessLevel = getAccessLevelForRole(newRole);
+      await changeAccessLevel({ grantId: memberId, accessLevel: newAccessLevel });
+      toast.success('Role updated successfully');
+      await loadMembers();
+      // Update selected member if it's the one we just changed
+      if (selectedMember?.id === memberId) {
+        setSelectedMember(prev => prev ? { ...prev, role: newRole, accessLevel: newAccessLevel } : null);
+      }
+    } catch (error: any) {
+      console.error('Error changing role:', error);
+      toast.error(error.message || 'Failed to update role');
     }
   };
 
@@ -187,6 +299,22 @@ export default function OrganizationMembers({
     if (!member.isActive) return { label: 'Inactive', color: 'text-gray-500 bg-gray-800' };
     if (!member.acceptedAt) return { label: 'Pending', color: 'text-yellow-400 bg-yellow-900/20' };
     return { label: 'Active', color: 'text-green-400 bg-green-900/20' };
+  };
+
+  const getAccessSummary = (member: Member) => {
+    if (member.role === 'Administrator') {
+      return 'All artists and releases';
+    }
+    if (member.role === 'Artist' && member.artistName) {
+      return `Artist: ${member.artistName}`;
+    }
+    if (member.role === 'Collaborator' && member.releaseAccessCount !== undefined) {
+      if (member.releaseAccessCount === 0) {
+        return 'No releases assigned';
+      }
+      return `${member.releaseAccessCount} release${member.releaseAccessCount !== 1 ? 's' : ''}`;
+    }
+    return 'Limited access';
   };
 
   if (loading) {
@@ -246,16 +374,16 @@ export default function OrganizationMembers({
 
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-2">
-                Access Level
+                Role
               </label>
-              <div className="grid grid-cols-2 gap-3">
-                {Object.entries(ACCESS_LEVEL_INFO).map(([level, info]) => {
+              <div className="grid grid-cols-3 gap-3">
+                {Object.entries(ROLE_INFO).map(([role, info]) => {
                   const Icon = info.icon;
-                  const isSelected = inviteAccessLevel === level;
+                  const isSelected = inviteRole === role;
                   return (
                     <button
-                      key={level}
-                      onClick={() => setInviteAccessLevel(level as any)}
+                      key={role}
+                      onClick={() => setInviteRole(role as any)}
                       className={`flex items-start gap-3 p-3 rounded-lg border-2 transition-all ${
                         isSelected
                           ? 'border-blue-500 bg-blue-900/20'
@@ -315,7 +443,10 @@ export default function OrganizationMembers({
                   Member
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
-                  Access Level
+                  Role
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
+                  Access
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
                   Status
@@ -331,7 +462,7 @@ export default function OrganizationMembers({
             <tbody className="divide-y divide-gray-700">
               {members.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-6 py-12 text-center">
+                  <td colSpan={6} className="px-6 py-12 text-center">
                     <div className="text-gray-400">
                       <UserPlus className="w-12 h-12 mx-auto mb-3 opacity-50" />
                       <p className="text-lg font-medium">No members yet</p>
@@ -341,13 +472,17 @@ export default function OrganizationMembers({
                 </tr>
               ) : (
                 members.map((member) => {
-                  // Use default if access level not recognized
-                  const accessInfo = ACCESS_LEVEL_INFO[member.accessLevel] || ACCESS_LEVEL_INFO.view;
-                  const AccessIcon = accessInfo.icon;
+                  const roleInfo = ROLE_INFO[member.role];
+                  const RoleIcon = roleInfo.icon;
                   const status = getMemberStatus(member);
+                  const accessSummary = getAccessSummary(member);
+                  const isCurrentUser = member.userId === currentUserId;
                   
                   return (
-                    <tr key={member.id} className="hover:bg-gray-700/30 transition-colors">
+                    <tr 
+                      key={member.id} 
+                      className={`hover:bg-gray-700/30 transition-colors ${selectedMember?.id === member.id ? 'bg-gray-700/50' : ''}`}
+                    >
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3">
                           {member.avatarUrl ? (
@@ -366,6 +501,7 @@ export default function OrganizationMembers({
                           <div>
                             <div className="font-medium text-white">
                               {getMemberDisplayName(member)}
+                              {isCurrentUser && <span className="text-gray-500 text-sm ml-2">(You)</span>}
                             </div>
                             <div className="text-sm text-gray-400">{member.email}</div>
                           </div>
@@ -373,9 +509,14 @@ export default function OrganizationMembers({
                       </td>
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-2">
-                          <AccessIcon className={`w-4 h-4 ${accessInfo.color}`} />
-                          <span className="text-sm text-gray-300">{accessInfo.label}</span>
+                          <RoleIcon className={`w-4 h-4 ${roleInfo.color}`} />
+                          <span className="text-sm text-gray-300">{roleInfo.label}</span>
                         </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className="text-sm text-gray-400 truncate max-w-[200px] block" title={accessSummary}>
+                          {accessSummary}
+                        </span>
                       </td>
                       <td className="px-6 py-4">
                         <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium ${status.color}`}>
@@ -388,20 +529,31 @@ export default function OrganizationMembers({
                         {new Date(member.invitedAt).toLocaleDateString()}
                       </td>
                       <td className="px-6 py-4 text-right">
-                        <IconButton
-                          icon={Trash2}
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleRemoveMember(member.id, member.email)}
-                          disabled={removingMemberId === member.id}
-                          className="text-red-400 hover:text-red-300"
-                        >
-                          {removingMemberId === member.id ? (
-                            <Spinner size="sm" />
-                          ) : (
-                            <Trash2 className="w-4 h-4" />
+                        <div className="flex items-center justify-end gap-2">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setSelectedMember(selectedMember?.id === member.id ? null : member)}
+                          >
+                            <Edit className="w-4 h-4" />
+                          </Button>
+                          {!isCurrentUser && (
+                            <IconButton
+                              icon={Trash2}
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleRemoveMember(member.id, member.email)}
+                              disabled={removingMemberId === member.id}
+                              className="text-red-400 hover:text-red-300"
+                            >
+                              {removingMemberId === member.id ? (
+                                <Spinner size="sm" />
+                              ) : (
+                                <Trash2 className="w-4 h-4" />
+                              )}
+                            </IconButton>
                           )}
-                        </IconButton>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -411,6 +563,81 @@ export default function OrganizationMembers({
           </table>
         </div>
       </div>
+
+      {/* Member Edit Modal */}
+      {selectedMember && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-gray-800 rounded-lg border border-gray-700 max-w-md w-full p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-white">Edit Member Access</h3>
+              <IconButton
+                icon={X}
+                variant="ghost"
+                size="sm"
+                onClick={() => setSelectedMember(null)}
+              />
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <div className="flex items-center gap-3 mb-4">
+                  {selectedMember.avatarUrl ? (
+                    <img
+                      src={selectedMember.avatarUrl}
+                      alt={getMemberDisplayName(selectedMember)}
+                      className="w-10 h-10 rounded-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-10 h-10 rounded-full bg-gray-600 flex items-center justify-center">
+                      <span className="text-white font-medium text-sm">
+                        {getMemberDisplayName(selectedMember).charAt(0).toUpperCase()}
+                      </span>
+                    </div>
+                  )}
+                  <div>
+                    <div className="font-medium text-white">{getMemberDisplayName(selectedMember)}</div>
+                    <div className="text-sm text-gray-400">{selectedMember.email}</div>
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Role
+                </label>
+                <select
+                  value={selectedMember.role}
+                  onChange={(e) => handleChangeRole(selectedMember.id, e.target.value as any)}
+                  className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-500"
+                >
+                  <option value="Administrator">Administrator</option>
+                  <option value="Collaborator">Collaborator</option>
+                  <option value="Artist">Artist</option>
+                </select>
+                <p className="text-xs text-gray-500 mt-1">{ROLE_INFO[selectedMember.role].description}</p>
+              </div>
+
+              <div className="pt-4 border-t border-gray-700">
+                <p className="text-sm text-gray-400 mb-2">Current Access:</p>
+                <p className="text-sm text-white">{getAccessSummary(selectedMember)}</p>
+                <p className="text-xs text-gray-500 mt-2">
+                  Note: Managing specific releases and artists will be available in a future update.
+                </p>
+              </div>
+
+              <div className="flex gap-3 pt-4">
+                <Button
+                  variant="secondary"
+                  onClick={() => setSelectedMember(null)}
+                  className="flex-1"
+                >
+                  Close
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Summary */}
       {members.length > 0 && (
@@ -433,4 +660,3 @@ export default function OrganizationMembers({
     </div>
   );
 }
-

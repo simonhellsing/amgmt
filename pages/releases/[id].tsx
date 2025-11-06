@@ -14,7 +14,7 @@ import Menu from '../../components/Menu';
 import Spinner from '../../components/Spinner';
 import Card from '../../components/Card';
 import Tooltip from '../../components/Tooltip';
-import { Music, MoreHorizontal, ChevronDown, FileText, Circle, CircleDashed, CircleCheck, Check, Edit, Trash2, RotateCcw, Plus, X, Copy, Share, List, Grid3x3, Upload, Loader2 } from 'lucide-react';
+import { Music, MoreHorizontal, ChevronDown, FileText, Circle, CircleDashed, CircleCheck, Check, Edit, Trash2, RotateCcw, Plus, X, Copy, Share, List, Grid3x3, Upload, Loader2, Play } from 'lucide-react';
 import IconButton from '../../components/IconButton';
 import BlurredHeader from '../../components/BlurredHeader';
 import ToastContainer from '../../components/Toast';
@@ -122,7 +122,7 @@ export default function ReleaseDetailPage() {
     canOverrideApprovals: false,
   });
   
-  const { toasts, removeToast, success, error } = useToast();
+  const { toasts, removeToast, success, error, showProgressToast, updateProgressToast, completeProgressToast } = useToast();
 
   useEffect(() => {
     const getUser = async () => {
@@ -251,8 +251,24 @@ export default function ReleaseDetailPage() {
             .order('created_at', { ascending: false });
 
           if (!filesError && allFiles) {
+            // Filter to show only primary versions (or files without versioning)
+            let filesData = allFiles;
+            if (allFiles && allFiles.length > 0) {
+              // Check if versioning columns exist
+              const hasVersioning = allFiles.some(f => f.is_primary !== undefined || f.parent_file_id !== undefined);
+              
+              if (hasVersioning) {
+                // Filter to show only primary versions
+                filesData = allFiles.filter(file => 
+                  file.is_primary === true || 
+                  (file.is_primary === null && file.parent_file_id === null)
+                );
+              }
+              // If versioning doesn't exist, show all files (backward compatibility)
+            }
+            
             // Group files by deliverable_id and take first 4 per deliverable (for gallery view)
-            allFiles.forEach(file => {
+            filesData.forEach(file => {
               if (!filesMap[file.deliverable_id]) {
                 filesMap[file.deliverable_id] = [];
               }
@@ -665,8 +681,18 @@ export default function ReleaseDetailPage() {
     const uploadedFiles: string[] = [];
     const failedFiles: string[] = [];
 
+    // Show progress toast
+    const progressToastId = showProgressToast(
+      `Uploading ${files.length} file${files.length > 1 ? 's' : ''}`,
+      files.length,
+      files[0]?.name
+    );
+
     try {
-      for (const file of files) {
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        // Update progress toast
+        updateProgressToast(progressToastId, i, file.name);
         // Upload file to Supabase Storage
         const fileName = `${Date.now()}-${file.name}`;
         const filePath = `deliverable-files/${deliverableId}/${fileName}`;
@@ -678,6 +704,8 @@ export default function ReleaseDetailPage() {
         if (uploadError) {
           console.error('Error uploading file:', uploadError);
           failedFiles.push(file.name);
+          // Update progress even on failure
+          updateProgressToast(progressToastId, i + 1, files[i + 1]?.name);
           continue;
         }
 
@@ -706,6 +734,9 @@ export default function ReleaseDetailPage() {
         } else if (insertedFile) {
           uploadedFiles.push(file.name);
         }
+
+        // Update progress after each file
+        updateProgressToast(progressToastId, i + 1, files[i + 1]?.name);
       }
 
       // Refresh deliverables to show new files
@@ -719,8 +750,24 @@ export default function ReleaseDetailPage() {
             .order('created_at', { ascending: false });
 
           if (allFiles) {
+            // Filter to show only primary versions (or files without versioning)
+            let filesData = allFiles;
+            if (allFiles && allFiles.length > 0) {
+              // Check if versioning columns exist
+              const hasVersioning = allFiles.some(f => f.is_primary !== undefined || f.parent_file_id !== undefined);
+              
+              if (hasVersioning) {
+                // Filter to show only primary versions
+                filesData = allFiles.filter(file => 
+                  file.is_primary === true || 
+                  (file.is_primary === null && file.parent_file_id === null)
+                );
+              }
+              // If versioning doesn't exist, show all files (backward compatibility)
+            }
+            
             const filesMap: { [key: string]: any[] } = {};
-            allFiles.forEach(file => {
+            filesData.forEach(file => {
               if (!filesMap[file.deliverable_id]) {
                 filesMap[file.deliverable_id] = [];
               }
@@ -737,8 +784,13 @@ export default function ReleaseDetailPage() {
         }
       }
 
-      // Show success/error toasts
-      if (uploadedFiles.length > 0) {
+      // Complete progress toast and show final notifications
+      if (uploadedFiles.length > 0 && failedFiles.length === 0) {
+        // All files succeeded - complete progress toast
+        completeProgressToast(progressToastId);
+      } else if (uploadedFiles.length > 0) {
+        // Some files succeeded - remove progress toast and show mixed results
+        removeToast(progressToastId);
         if (uploadedFiles.length === 1) {
           success(
             `"${uploadedFiles[0]}" has been uploaded`
@@ -748,6 +800,9 @@ export default function ReleaseDetailPage() {
             `${uploadedFiles.length} files have been uploaded`
           );
         }
+      } else {
+        // All files failed - remove progress toast
+        removeToast(progressToastId);
       }
       
       if (failedFiles.length > 0) {
@@ -765,6 +820,7 @@ export default function ReleaseDetailPage() {
       }
     } catch (err) {
       console.error('Error uploading files:', err);
+      removeToast(progressToastId);
       error('Upload failed', 'An unexpected error occurred while uploading files.');
     } finally {
       setUploadingToDeliverable(null);
@@ -1363,11 +1419,13 @@ export default function ReleaseDetailPage() {
                   
                   return daysA - daysB;
                 }).map((deliverable) => {
-                  // Filter for image files only and get first 4 for gallery view
-                  const imageFiles = deliverable.deliverable_files?.filter(f => f.file_type.startsWith('image/')) || [];
-                  const firstFourImages = imageFiles.slice(0, 4);
+                  // Filter for image and video files and get first 4 for gallery view
+                  const mediaFiles = deliverable.deliverable_files?.filter(f => 
+                    f.file_type.startsWith('image/') || f.file_type.startsWith('video/')
+                  ) || [];
+                  const firstFourMedia = mediaFiles.slice(0, 4);
                   // Ensure we always have an array with 4 elements (fill with undefined if needed)
-                  const displayImages = [...firstFourImages, ...Array(Math.max(0, 4 - firstFourImages.length)).fill(undefined)];
+                  const displayMedia = [...firstFourMedia, ...Array(Math.max(0, 4 - firstFourMedia.length)).fill(undefined)];
                   
                   return (
                     <div
@@ -1449,17 +1507,37 @@ export default function ReleaseDetailPage() {
                             </div>
                           )}
                           <div className="grid grid-cols-2 grid-rows-2 h-full w-full gap-2.5 p-6">
-                            {displayImages.map((imageFile, idx) => {
+                            {displayMedia.map((mediaFile, idx) => {
                               return (
                                 <div key={idx} className="relative overflow-hidden rounded-md aspect-square">
-                                  {imageFile ? (
-                                    <Image
-                                      src={imageFile.file_url}
-                                      alt={imageFile.name}
-                                      fill
-                                      className="object-cover"
-                                      quality={85}
-                                    />
+                                  {mediaFile ? (
+                                    mediaFile.file_type.startsWith('image/') ? (
+                                      <Image
+                                        src={mediaFile.file_url}
+                                        alt={mediaFile.name}
+                                        fill
+                                        className="object-cover"
+                                        quality={85}
+                                      />
+                                    ) : mediaFile.file_type.startsWith('video/') ? (
+                                      <>
+                                        <video
+                                          src={mediaFile.file_url}
+                                          className="absolute inset-0 w-full h-full object-cover"
+                                          muted
+                                          preload="metadata"
+                                          playsInline
+                                        />
+                                        {/* Video play icon overlay */}
+                                        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                                          <div className="bg-black/60 rounded-full p-1">
+                                            <Play className="w-3 h-3 text-white fill-white" />
+                                          </div>
+                                        </div>
+                                      </>
+                                    ) : (
+                                      <div className="w-full h-full bg-gray-600 rounded-md"></div>
+                                    )
                                   ) : (
                                     <div className="w-full h-full bg-gray-600 rounded-md"></div>
                                   )}

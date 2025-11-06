@@ -1,13 +1,18 @@
 import React, { useEffect, useState } from 'react';
-import { X, Check, AlertCircle, Info, Trash2 } from 'lucide-react';
+import { X, Check, AlertCircle, Info, Trash2, Upload } from 'lucide-react';
 
 export interface Toast {
   id: string;
-  type: 'success' | 'error' | 'warning' | 'info';
+  type: 'success' | 'error' | 'warning' | 'info' | 'progress';
   title: string;
   message?: string;
   icon?: React.ReactNode;
   duration?: number;
+  progress?: {
+    current: number;
+    total: number;
+    currentFileName?: string;
+  };
 }
 
 interface ToastProps {
@@ -26,13 +31,14 @@ const ToastItem: React.FC<ToastProps> = ({ toast, onClose }) => {
   }, []);
 
   useEffect(() => {
-    if (toast.duration) {
+    // Don't auto-close progress toasts
+    if (toast.duration && toast.type !== 'progress') {
       const timer = setTimeout(() => {
         handleClose();
       }, toast.duration);
       return () => clearTimeout(timer);
     }
-  }, [toast.duration]);
+  }, [toast.duration, toast.type]);
 
   const handleClose = () => {
     setIsLeaving(true);
@@ -75,6 +81,12 @@ const ToastItem: React.FC<ToastProps> = ({ toast, onClose }) => {
           bgColor: 'bg-gray-800',
           borderColor: 'border-blue-400',
         };
+      case 'progress':
+        return {
+          icon: <Upload className="w-5 h-5 text-blue-400 animate-pulse" />,
+          bgColor: 'bg-gray-800',
+          borderColor: 'border-blue-400',
+        };
       default:
         return {
           icon: <Info className="w-5 h-5 text-gray-400" />,
@@ -107,6 +119,30 @@ const ToastItem: React.FC<ToastProps> = ({ toast, onClose }) => {
           <p className="text-white font-medium text-sm">{toast.title}</p>
           {toast.message && (
             <p className="text-gray-300 text-sm mt-1">{toast.message}</p>
+          )}
+          {toast.progress && (
+            <div className="mt-3">
+              <div className="flex items-center justify-between text-xs text-gray-400 mb-1">
+                <span>
+                  {toast.progress.currentFileName || `File ${toast.progress.current} of ${toast.progress.total}`}
+                </span>
+                <span>
+                  {toast.progress.total > 0 
+                    ? `${Math.round((toast.progress.current / toast.progress.total) * 100)}%`
+                    : '0%'}
+                </span>
+              </div>
+              <div className="w-full bg-gray-700 rounded-full h-2 overflow-hidden">
+                <div
+                  className="bg-blue-400 h-2 rounded-full transition-all duration-300 ease-out"
+                  style={{ 
+                    width: toast.progress.total > 0
+                      ? `${Math.min(100, (toast.progress.current / toast.progress.total) * 100)}%`
+                      : '0%'
+                  }}
+                />
+              </div>
+            </div>
           )}
         </div>
         <button

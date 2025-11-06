@@ -59,7 +59,7 @@ export default function FolderDetailPage() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [imageLoadStates, setImageLoadStates] = useState<{ [key: string]: 'loading' | 'loaded' | 'error' }>({});
   const processedImages = useRef<Set<string>>(new Set());
-  const { toasts, removeToast, success, error } = useToast();
+  const { toasts, removeToast, success, error, showProgressToast, updateProgressToast, completeProgressToast } = useToast();
 
   useEffect(() => {
     if (!id) return;
@@ -255,8 +255,18 @@ export default function FolderDetailPage() {
     const uploadedFiles: string[] = [];
     const failedFiles: string[] = [];
 
+    // Show progress toast
+    const progressToastId = showProgressToast(
+      `Uploading ${files.length} file${files.length > 1 ? 's' : ''}`,
+      files.length,
+      files[0]?.name
+    );
+
     try {
-      for (const file of files) {
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        // Update progress toast
+        updateProgressToast(progressToastId, i, file.name);
         // Upload file to Supabase Storage - use deliverable-files bucket for now
         const fileName = `${Date.now()}-${file.name}`;
         const filePath = `folder-files/${folder.id}/${fileName}`;
@@ -282,6 +292,8 @@ export default function FolderDetailPage() {
             error: uploadError
           });
           failedFiles.push(file.name);
+          // Update progress even on failure
+          updateProgressToast(progressToastId, i + 1, files[i + 1]?.name);
           continue;
         }
 
@@ -335,6 +347,9 @@ export default function FolderDetailPage() {
             }
           }
         }
+
+        // Update progress after each file
+        updateProgressToast(progressToastId, i + 1, files[i + 1]?.name);
       }
 
       // Refresh files list
@@ -392,8 +407,13 @@ export default function FolderDetailPage() {
 
       setSelectedFiles([]);
       
-      // Show toast notifications
-      if (uploadedFiles.length > 0) {
+      // Complete progress toast and show final notifications
+      if (uploadedFiles.length > 0 && failedFiles.length === 0) {
+        // All files succeeded - complete progress toast
+        completeProgressToast(progressToastId);
+      } else if (uploadedFiles.length > 0) {
+        // Some files succeeded - remove progress toast and show mixed results
+        removeToast(progressToastId);
         if (uploadedFiles.length === 1) {
           success(
             `"${uploadedFiles[0]}" has been uploaded`
@@ -403,6 +423,9 @@ export default function FolderDetailPage() {
             `${uploadedFiles.length} files have been uploaded`
           );
         }
+      } else {
+        // All files failed - remove progress toast
+        removeToast(progressToastId);
       }
 
       if (failedFiles.length > 0) {
@@ -412,6 +435,7 @@ export default function FolderDetailPage() {
       }
     } catch (err) {
       console.error('Error uploading files:', err);
+      removeToast(progressToastId);
       error('Failed to upload files');
     } finally {
       setUploading(false);
@@ -479,13 +503,43 @@ export default function FolderDetailPage() {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
   };
 
-  const getFileTypeDisplay = (fileType: string) => {
-    if (fileType.startsWith('image/')) return 'Image';
-    if (fileType.startsWith('video/')) return 'Video';
-    if (fileType.startsWith('audio/')) return 'Audio';
-    if (fileType.includes('pdf')) return 'PDF';
-    if (fileType.includes('zip') || fileType.includes('rar')) return 'Archive';
-    return 'File';
+  const getFileTypeDisplay = (fileType: string, fileName?: string) => {
+    // Try to get extension from file name first
+    if (fileName) {
+      const parts = fileName.split('.');
+      if (parts.length > 1) {
+        const extension = parts[parts.length - 1].toLowerCase();
+        return extension.toUpperCase();
+      }
+    }
+    
+    // Fallback to extracting from MIME type
+    if (fileType.includes('/')) {
+      const parts = fileType.split('/');
+      if (parts.length > 1) {
+        const subtype = parts[1].toLowerCase();
+        // Handle common MIME type mappings
+        if (subtype.includes('jpeg') || subtype.includes('jpg')) return 'JPEG';
+        if (subtype.includes('png')) return 'PNG';
+        if (subtype.includes('gif')) return 'GIF';
+        if (subtype.includes('webp')) return 'WEBP';
+        if (subtype.includes('svg')) return 'SVG';
+        if (subtype.includes('mp4')) return 'MP4';
+        if (subtype.includes('mov')) return 'MOV';
+        if (subtype.includes('webm')) return 'WEBM';
+        if (subtype.includes('mp3')) return 'MP3';
+        if (subtype.includes('wav')) return 'WAV';
+        if (subtype.includes('ogg')) return 'OGG';
+        if (subtype.includes('m4a')) return 'M4A';
+        if (subtype.includes('pdf')) return 'PDF';
+        if (subtype.includes('zip')) return 'ZIP';
+        if (subtype.includes('rar')) return 'RAR';
+        // Return the subtype in uppercase if no specific mapping
+        return subtype.split(';')[0].split('+')[0].toUpperCase();
+      }
+    }
+    
+    return 'FILE';
   };
 
   if (loading) {
@@ -682,7 +736,7 @@ export default function FolderDetailPage() {
                                file.file_type.includes('zip') || file.file_type.includes('rar') ? '📦' : '📄'}
                             </div>
                             <div className="text-xs text-gray-300 font-medium">
-                              {getFileTypeDisplay(file.file_type)}
+                              {getFileTypeDisplay(file.file_type, file.name)}
                             </div>
                           </div>
                         )}
@@ -690,7 +744,7 @@ export default function FolderDetailPage() {
                       <div className="p-3">
                         <h3 className="font-medium text-sm mb-1 truncate text-white">{file.name}</h3>
                         <p className="text-xs text-gray-400">
-                          {getFileTypeDisplay(file.file_type)} • {formatFileSize(file.file_size)}
+                          {getFileTypeDisplay(file.file_type, file.name)} • {formatFileSize(file.file_size)}
                         </p>
                       </div>
                     </div>

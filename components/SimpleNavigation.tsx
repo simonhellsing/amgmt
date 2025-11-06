@@ -445,7 +445,7 @@ export default function SimpleNavigation({ isScrolled }: SimpleNavigationProps) 
           <div className="flex items-center gap-[12px] flex-1 ml-[12px]">
             <button
               onClick={() => router.push(`/releases/${deliverableData.releaseId}`)}
-              className="flex items-center gap-2 text-gray-300 hover:text-white hover:bg-gray-600 px-2 py-1 rounded-lg transition-colors cursor-pointer text-sm font-medium"
+              className="flex items-center gap-2 text-gray-300 hover:text-white hover:bg-gray-800 p-2 rounded-lg transition-colors cursor-pointer text-sm font-medium bg-gray-900 opacity-80 hover:opacity-100"
             >
               {deliverableData.coverUrl ? (
                 <img
@@ -461,7 +461,7 @@ export default function SimpleNavigation({ isScrolled }: SimpleNavigationProps) 
               <span>{deliverableData.releaseTitle}</span>
             </button>
             <ChevronRight className="w-4 h-4 text-gray-500" />
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1">
               {(() => {
                 switch (deliverableData.status) {
                   case 'not_started':
@@ -477,10 +477,10 @@ export default function SimpleNavigation({ isScrolled }: SimpleNavigationProps) 
               })()}
               <span className="text-white text-sm font-medium">{deliverableData.deliverableName}</span>
             </div>
-            <div className="relative ml-2">
+            <div className="relative ml-1">
               <button
                 onClick={() => setShowDeliverableMenu(!showDeliverableMenu)}
-                className="flex items-center justify-center rounded-lg transition-all duration-75 cursor-pointer p-2 bg-gray-700 hover:bg-gray-600 opacity-80 hover:opacity-100 shadow-sm"
+                className={`flex items-center justify-center rounded-lg transition-all duration-75 cursor-pointer p-2 bg-gray-900 hover:bg-gray-800 opacity-80 hover:opacity-100 shadow-sm`}
               >
                 <MoreHorizontal className="w-4 h-4 text-white" />
               </button>

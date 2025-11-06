@@ -7,7 +7,8 @@ import AuthWrapper from '../../components/AuthWrapper';
 import FilePreviewModal from '../../components/FilePreviewModal';
 import Spinner from '../../components/Spinner';
 import IconButton from '../../components/IconButton';
-import { Check, CheckCircle, CircleCheck, CircleDashed, Circle, Upload, Loader2, X, Trash2, RotateCcw, Download, ArrowLeft, ChevronRight, MoreHorizontal, Copy, Edit } from 'lucide-react';
+import WaveformIcon from '../../components/WaveformIcon';
+import { Check, CheckCircle, CircleCheck, CircleDashed, Circle, Upload, Loader2, X, Trash2, RotateCcw, Download, ArrowLeft, ChevronRight, MoreHorizontal, Copy, Edit, Play, AudioLines, Layers } from 'lucide-react';
 import ToastContainer from '../../components/Toast';
 import { useToast } from '../../lib/useToast';
 import { getUserHighestAccess } from '../../lib/accessControl';
@@ -77,7 +78,8 @@ export default function DeliverableDetailPage() {
   const [imageLoadStates, setImageLoadStates] = useState<{ [key: string]: 'loading' | 'loaded' | 'error' }>({});
   const processedImages = useRef<Set<string>>(new Set());
   const [layoutPreference, setLayoutPreference] = useState<string>('simple');
-  const { toasts, removeToast, success, error } = useToast();
+  const [filesWithVersions, setFilesWithVersions] = useState<Set<string>>(new Set());
+  const { toasts, removeToast, success, error, showProgressToast, updateProgressToast, completeProgressToast } = useToast();
 
   // Fetch layout preference
   useEffect(() => {
@@ -194,11 +196,29 @@ export default function DeliverableDetailPage() {
       setDeliverable(deliverableData);
 
       // Fetch files for this deliverable
-      const { data: filesData, error: filesError } = await supabase
+      // Only show primary versions (or files without versioning)
+      // Logic: Show files where is_primary = true OR (is_primary IS NULL AND parent_file_id IS NULL)
+      const { data: allFilesData, error: filesError } = await supabase
         .from('deliverable_files')
         .select('*')
         .eq('deliverable_id', id)
         .order('created_at', { ascending: false });
+      
+      // Filter to show only primary versions
+      let filesData = allFilesData;
+      if (allFilesData && allFilesData.length > 0) {
+        // Check if versioning columns exist by checking if any file has is_primary or parent_file_id
+        const hasVersioning = allFilesData.some(f => f.is_primary !== undefined || f.parent_file_id !== undefined);
+        
+        if (hasVersioning) {
+          // Filter to show only primary versions
+          filesData = allFilesData.filter(file => 
+            file.is_primary === true || 
+            (file.is_primary === null && file.parent_file_id === null)
+          );
+        }
+        // If versioning doesn't exist, show all files (backward compatibility)
+      }
 
       if (filesError) {
         console.error('Error fetching files:', filesError);
@@ -207,26 +227,32 @@ export default function DeliverableDetailPage() {
         processedImages.current.clear();
       } else {
         console.log('Loaded files:', filesData);
-        setFiles(filesData || []);
+        const filesToSet = filesData || [];
+        setFiles(filesToSet);
         
-        // Initialize image load states for all image files
-        const imageFiles = (filesData || []).filter(file => file.file_type.startsWith('image/'));
-        if (imageFiles.length > 0) {
-          console.log('Initializing image load states for:', imageFiles.map(f => f.id));
-          processedImages.current.clear(); // Clear processed images for fresh start
+        // Check which files have multiple versions
+        setFilesWithVersions(computeFilesWithVersions(allFilesData || [], filesToSet));
+        
+        // Initialize image/video load states for all image and video files
+        const mediaFiles = (filesData || []).filter(file => 
+          file.file_type.startsWith('image/') || file.file_type.startsWith('video/')
+        );
+        if (mediaFiles.length > 0) {
+          console.log('Initializing media load states for:', mediaFiles.map(f => f.id));
+          processedImages.current.clear(); // Clear processed media for fresh start
           const initialStates: { [key: string]: 'loading' | 'loaded' | 'error' } = {};
-          imageFiles.forEach(file => {
+          mediaFiles.forEach(file => {
             initialStates[file.id] = 'loading';
           });
           setImageLoadStates(initialStates);
           
-          // Fallback: if images don't trigger events within 3 seconds, mark them as loaded
+          // Fallback: if media don't trigger events within 3 seconds, mark them as loaded
           setTimeout(() => {
             setImageLoadStates(prev => {
               const newStates = { ...prev };
-              imageFiles.forEach(file => {
+              mediaFiles.forEach(file => {
                 if (newStates[file.id] === 'loading') {
-                  console.log('Fallback: marking image as loaded:', file.id);
+                  console.log('Fallback: marking media as loaded:', file.id);
                   newStates[file.id] = 'loaded';
                   processedImages.current.add(file.id);
                 }
@@ -313,7 +339,7 @@ export default function DeliverableDetailPage() {
   };
 
   const handleImageLoad = (fileId: string) => {
-    console.log('Image loaded successfully:', fileId);
+    console.log('Image/Video loaded successfully:', fileId);
     processedImages.current.add(fileId);
     setImageLoadStates(prev => ({
       ...prev,
@@ -322,7 +348,7 @@ export default function DeliverableDetailPage() {
   };
 
   const handleImageError = (fileId: string) => {
-    console.log('Image failed to load:', fileId);
+    console.log('Image/Video failed to load:', fileId);
     processedImages.current.add(fileId);
     setImageLoadStates(prev => ({
       ...prev,
@@ -331,8 +357,8 @@ export default function DeliverableDetailPage() {
   };
 
   const handleImageStartLoad = (fileId: string) => {
-    console.log('Image start loading:', fileId);
-    // Only set to loading if we haven't already processed this image
+    console.log('Image/Video start loading:', fileId);
+    // Only set to loading if we haven't already processed this image/video
     if (!processedImages.current.has(fileId)) {
       setImageLoadStates(prev => ({
         ...prev,
@@ -354,8 +380,19 @@ export default function DeliverableDetailPage() {
     const uploadedFiles: string[] = [];
     const failedFiles: string[] = [];
 
+    // Show progress toast
+    const progressToastId = showProgressToast(
+      `Uploading ${files.length} file${files.length > 1 ? 's' : ''}`,
+      files.length,
+      files[0]?.name
+    );
+
     try {
-      for (const file of files) {
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        // Update progress toast
+        updateProgressToast(progressToastId, i, file.name);
+
         // Upload file to Supabase Storage
         const fileName = `${Date.now()}-${file.name}`;
         const filePath = `deliverable-files/${deliverable.id}/${fileName}`;
@@ -367,6 +404,8 @@ export default function DeliverableDetailPage() {
         if (uploadError) {
           console.error('Error uploading file:', uploadError);
           failedFiles.push(file.name);
+          // Update progress even on failure
+          updateProgressToast(progressToastId, i + 1, files[i + 1]?.name);
           continue;
         }
 
@@ -376,16 +415,35 @@ export default function DeliverableDetailPage() {
           .getPublicUrl(filePath);
 
         // Create file record in database
+        // New files uploaded directly to deliverable are container roots (parent_file_id = null)
+        // and are primary by default (is_primary = true)
+        const insertData: any = {
+          name: file.name,
+          file_type: file.type || 'unknown',
+          file_size: file.size,
+          file_url: publicUrl,
+          deliverable_id: deliverable.id,
+          status: 'in_progress'
+        };
+        
+        // Add versioning fields if versioning is available
+        // Check if versioning columns exist by trying to insert with them
+        try {
+          const { data: { user } } = await supabase.auth.getUser();
+          if (user) {
+            insertData.parent_file_id = null; // Container root
+            insertData.is_primary = true; // Primary by default
+            insertData.version_number = 1; // First version
+            insertData.uploaded_by = user.id;
+          }
+        } catch (e) {
+          // Versioning columns may not exist - that's okay
+          console.warn('Versioning not available for new upload:', e);
+        }
+        
         const { data: insertedFile, error: dbError } = await supabase
           .from('deliverable_files')
-          .insert({
-            name: file.name,
-            file_type: file.type || 'unknown',
-            file_size: file.size,
-            file_url: publicUrl,
-            deliverable_id: deliverable.id,
-            status: 'in_progress'
-          })
+          .insert(insertData)
           .select()
           .single();
 
@@ -397,47 +455,71 @@ export default function DeliverableDetailPage() {
           // Add to newly uploaded files set for immediate display
           setNewlyUploadedFiles(prev => new Set([...prev, insertedFile.id]));
           setIsAddingNewFile(true);
-          // Set loading state for image files
-          if (insertedFile.file_type.startsWith('image/')) {
+          // Set loading state for image and video files
+          if (insertedFile.file_type.startsWith('image/') || insertedFile.file_type.startsWith('video/')) {
             setImageLoadStates(prev => ({
               ...prev,
               [insertedFile.id]: 'loading'
             }));
           }
         }
+
+        // Update progress after each file
+        updateProgressToast(progressToastId, i + 1, files[i + 1]?.name);
       }
 
       // Refresh files list
-      const { data: filesData, error: filesError } = await supabase
+      // Only show primary versions (or files without versioning)
+      const { data: allFilesData, error: filesError } = await supabase
         .from('deliverable_files')
         .select('*')
         .eq('deliverable_id', deliverable.id)
         .order('created_at', { ascending: false });
 
+      // Filter to show only primary versions
+      let filesData = allFilesData;
+      if (allFilesData && allFilesData.length > 0) {
+        // Check if versioning columns exist
+        const hasVersioning = allFilesData.some(f => f.is_primary !== undefined || f.parent_file_id !== undefined);
+        
+        if (hasVersioning) {
+          // Filter to show only primary versions
+          filesData = allFilesData.filter(file => 
+            file.is_primary === true || 
+            (file.is_primary === null && file.parent_file_id === null)
+          );
+        }
+        // If versioning doesn't exist, show all files (backward compatibility)
+      }
+
       if (!filesError && filesData) {
         console.log('Files refreshed after upload:', filesData.length, 'files');
         setFiles(filesData);
+        // Update files with versions
+        setFilesWithVersions(computeFilesWithVersions(allFilesData || [], filesData || []));
         
-        // Initialize image load states for any new image files
-        const imageFiles = filesData.filter(file => file.file_type.startsWith('image/'));
-        if (imageFiles.length > 0) {
-          const newImageFiles = imageFiles.filter(file => !imageLoadStates[file.id]);
-          if (newImageFiles.length > 0) {
+        // Initialize image/video load states for any new media files
+        const mediaFiles = filesData.filter(file => 
+          file.file_type.startsWith('image/') || file.file_type.startsWith('video/')
+        );
+        if (mediaFiles.length > 0) {
+          const newMediaFiles = mediaFiles.filter(file => !imageLoadStates[file.id]);
+          if (newMediaFiles.length > 0) {
             setImageLoadStates(prev => {
               const newStates = { ...prev };
-              newImageFiles.forEach(file => {
+              newMediaFiles.forEach(file => {
                 newStates[file.id] = 'loading';
               });
               return newStates;
             });
             
-            // Fallback for new images
+            // Fallback for new media
             setTimeout(() => {
               setImageLoadStates(prev => {
                 const newStates = { ...prev };
-                newImageFiles.forEach(file => {
+                newMediaFiles.forEach(file => {
                   if (newStates[file.id] === 'loading') {
-                    console.log('Fallback: marking new image as loaded:', file.id);
+                    console.log('Fallback: marking new media as loaded:', file.id);
                     newStates[file.id] = 'loaded';
                     processedImages.current.add(file.id);
                   }
@@ -477,8 +559,13 @@ export default function DeliverableDetailPage() {
 
       setSelectedFiles([]);
       
-      // Show toast notifications
-      if (uploadedFiles.length > 0) {
+      // Complete progress toast and show final notifications
+      if (uploadedFiles.length > 0 && failedFiles.length === 0) {
+        // All files succeeded - complete progress toast
+        completeProgressToast(progressToastId);
+      } else if (uploadedFiles.length > 0) {
+        // Some files succeeded - remove progress toast and show mixed results
+        removeToast(progressToastId);
         if (uploadedFiles.length === 1) {
           success(
             `"${uploadedFiles[0]}" has been uploaded`
@@ -488,6 +575,9 @@ export default function DeliverableDetailPage() {
             `${uploadedFiles.length} files have been uploaded`
           );
         }
+      } else {
+        // All files failed - remove progress toast
+        removeToast(progressToastId);
       }
       
       if (failedFiles.length > 0) {
@@ -505,6 +595,7 @@ export default function DeliverableDetailPage() {
       }
     } catch (err) {
       console.error('Error uploading files:', err);
+      removeToast(progressToastId);
       error('Upload failed', 'An unexpected error occurred while uploading files.');
     } finally {
       setUploading(false);
@@ -520,8 +611,38 @@ export default function DeliverableDetailPage() {
     setShowPreview(true);
   };
 
+  // Helper function to compute which files have multiple versions
+  const computeFilesWithVersions = (allFilesData: any[], filesData: any[]) => {
+    const filesWithMultipleVersions = new Set<string>();
+    if (filesData && filesData.length > 0) {
+      const hasVersioning = allFilesData?.some(f => f.is_primary !== undefined || f.parent_file_id !== undefined);
+      
+      if (hasVersioning && allFilesData) {
+        // Build a map of container root IDs to version counts
+        const containerVersionCounts = new Map<string, number>();
+        
+        // For each file in allFilesData, determine its container root
+        allFilesData.forEach(file => {
+          const containerRootId = file.parent_file_id || file.id;
+          containerVersionCounts.set(containerRootId, (containerVersionCounts.get(containerRootId) || 0) + 1);
+        });
+        
+        // Check each displayed file to see if its container has multiple versions
+        filesData.forEach(file => {
+          const containerRootId = file.parent_file_id || file.id;
+          const versionCount = containerVersionCounts.get(containerRootId) || 0;
+          if (versionCount > 1) {
+            filesWithMultipleVersions.add(file.id);
+          }
+        });
+      }
+    }
+    return filesWithMultipleVersions;
+  };
+
   const handleFileUpdate = () => {
     // Refresh files list when a file is updated
+    // Only show primary versions (or files without versioning)
     if (deliverable) {
       supabase
         .from('deliverable_files')
@@ -530,14 +651,34 @@ export default function DeliverableDetailPage() {
         .order('created_at', { ascending: false })
         .then(({ data, error }) => {
           if (!error && data) {
-            setFiles(data);
+            // Filter to show only primary versions
+            let filteredData = data;
+            if (data && data.length > 0) {
+              // Check if versioning columns exist
+              const hasVersioning = data.some(f => f.is_primary !== undefined || f.parent_file_id !== undefined);
+              
+              if (hasVersioning) {
+                // Filter to show only primary versions
+                filteredData = data.filter(file => 
+                  file.is_primary === true || 
+                  (file.is_primary === null && file.parent_file_id === null)
+                );
+              }
+              // If versioning doesn't exist, show all files (backward compatibility)
+            }
             
-            // Initialize image load states for any new image files
-            const imageFiles = data.filter(file => file.file_type.startsWith('image/'));
-            if (imageFiles.length > 0) {
+            setFiles(filteredData);
+            // Update files with versions
+            setFilesWithVersions(computeFilesWithVersions(data, filteredData));
+            
+            // Initialize image/video load states for any new media files
+            const mediaFiles = filteredData.filter(file => 
+              file.file_type.startsWith('image/') || file.file_type.startsWith('video/')
+            );
+            if (mediaFiles.length > 0) {
               setImageLoadStates(prev => {
                 const newStates = { ...prev };
-                imageFiles.forEach(file => {
+                mediaFiles.forEach(file => {
                   if (!prev[file.id]) {
                     newStates[file.id] = 'loading';
                   }
@@ -587,11 +728,25 @@ export default function DeliverableDetailPage() {
       } else {
         console.log('Successfully marked all files as final');
         // Refresh files from database to ensure we have the latest state
-        const { data: refreshedFiles, error: refreshError } = await supabase
+        // Only show primary versions (or files without versioning)
+        const { data: allRefreshedFiles, error: refreshError } = await supabase
           .from('deliverable_files')
           .select('*')
           .eq('deliverable_id', id)
           .order('created_at', { ascending: false });
+        
+        // Filter to show only primary versions
+        let refreshedFiles = allRefreshedFiles;
+        if (allRefreshedFiles && allRefreshedFiles.length > 0) {
+          const hasVersioning = allRefreshedFiles.some(f => f.is_primary !== undefined || f.parent_file_id !== undefined);
+          
+          if (hasVersioning) {
+            refreshedFiles = allRefreshedFiles.filter(file => 
+              file.is_primary === true || 
+              (file.is_primary === null && file.parent_file_id === null)
+            );
+          }
+        }
 
         if (refreshError) {
           console.error('Error refreshing files:', refreshError);
@@ -603,15 +758,26 @@ export default function DeliverableDetailPage() {
           });
         } else {
           console.log('Refreshed files from database:', refreshedFiles);
-          setFiles(refreshedFiles || []);
+          const refreshedFilesArray = refreshedFiles || [];
+          setFiles(refreshedFilesArray);
           
-          // Initialize image load states for any new image files
+          // Also fetch all files to compute version counts
+          const { data: allRefreshedFiles } = await supabase
+            .from('deliverable_files')
+            .select('*')
+            .eq('deliverable_id', id);
+          
+          setFilesWithVersions(computeFilesWithVersions(allRefreshedFiles || [], refreshedFilesArray));
+          
+          // Initialize image/video load states for any new media files
           if (refreshedFiles) {
-            const imageFiles = refreshedFiles.filter(file => file.file_type.startsWith('image/'));
-            if (imageFiles.length > 0) {
+            const mediaFiles = refreshedFiles.filter(file => 
+              file.file_type.startsWith('image/') || file.file_type.startsWith('video/')
+            );
+            if (mediaFiles.length > 0) {
               setImageLoadStates(prev => {
                 const newStates = { ...prev };
-                imageFiles.forEach(file => {
+                mediaFiles.forEach(file => {
                   if (!prev[file.id]) {
                     newStates[file.id] = 'loading';
                   }
@@ -801,15 +967,26 @@ export default function DeliverableDetailPage() {
           });
         } else {
           console.log('Refreshed files from database:', refreshedFiles);
-          setFiles(refreshedFiles || []);
+          const refreshedFilesArray = refreshedFiles || [];
+          setFiles(refreshedFilesArray);
           
-          // Initialize image load states for any new image files
+          // Also fetch all files to compute version counts
+          const { data: allRefreshedFiles } = await supabase
+            .from('deliverable_files')
+            .select('*')
+            .eq('deliverable_id', id);
+          
+          setFilesWithVersions(computeFilesWithVersions(allRefreshedFiles || [], refreshedFilesArray));
+          
+          // Initialize image/video load states for any new media files
           if (refreshedFiles) {
-            const imageFiles = refreshedFiles.filter(file => file.file_type.startsWith('image/'));
-            if (imageFiles.length > 0) {
+            const mediaFiles = refreshedFiles.filter(file => 
+              file.file_type.startsWith('image/') || file.file_type.startsWith('video/')
+            );
+            if (mediaFiles.length > 0) {
               setImageLoadStates(prev => {
                 const newStates = { ...prev };
-                imageFiles.forEach(file => {
+                mediaFiles.forEach(file => {
                   if (!prev[file.id]) {
                     newStates[file.id] = 'loading';
                   }
@@ -903,15 +1080,26 @@ export default function DeliverableDetailPage() {
           });
         } else {
           console.log('Refreshed files from database:', refreshedFiles);
-          setFiles(refreshedFiles || []);
+          const refreshedFilesArray = refreshedFiles || [];
+          setFiles(refreshedFilesArray);
           
-          // Initialize image load states for any new image files
+          // Also fetch all files to compute version counts
+          const { data: allRefreshedFiles } = await supabase
+            .from('deliverable_files')
+            .select('*')
+            .eq('deliverable_id', id);
+          
+          setFilesWithVersions(computeFilesWithVersions(allRefreshedFiles || [], refreshedFilesArray));
+          
+          // Initialize image/video load states for any new media files
           if (refreshedFiles) {
-            const imageFiles = refreshedFiles.filter(file => file.file_type.startsWith('image/'));
-            if (imageFiles.length > 0) {
+            const mediaFiles = refreshedFiles.filter(file => 
+              file.file_type.startsWith('image/') || file.file_type.startsWith('video/')
+            );
+            if (mediaFiles.length > 0) {
               setImageLoadStates(prev => {
                 const newStates = { ...prev };
-                imageFiles.forEach(file => {
+                mediaFiles.forEach(file => {
                   if (!prev[file.id]) {
                     newStates[file.id] = 'loading';
                   }
@@ -979,13 +1167,43 @@ export default function DeliverableDetailPage() {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
   };
 
-  const getFileTypeDisplay = (fileType: string) => {
-    if (fileType.startsWith('image/')) return 'Image';
-    if (fileType.startsWith('video/')) return 'Video';
-    if (fileType.startsWith('audio/')) return 'Audio';
-    if (fileType.includes('pdf')) return 'PDF';
-    if (fileType.includes('zip') || fileType.includes('rar')) return 'Archive';
-    return 'File';
+  const getFileTypeDisplay = (fileType: string, fileName?: string) => {
+    // Try to get extension from file name first
+    if (fileName) {
+      const parts = fileName.split('.');
+      if (parts.length > 1) {
+        const extension = parts[parts.length - 1].toLowerCase();
+        return extension.toUpperCase();
+      }
+    }
+    
+    // Fallback to extracting from MIME type
+    if (fileType.includes('/')) {
+      const parts = fileType.split('/');
+      if (parts.length > 1) {
+        const subtype = parts[1].toLowerCase();
+        // Handle common MIME type mappings
+        if (subtype.includes('jpeg') || subtype.includes('jpg')) return 'JPEG';
+        if (subtype.includes('png')) return 'PNG';
+        if (subtype.includes('gif')) return 'GIF';
+        if (subtype.includes('webp')) return 'WEBP';
+        if (subtype.includes('svg')) return 'SVG';
+        if (subtype.includes('mp4')) return 'MP4';
+        if (subtype.includes('mov')) return 'MOV';
+        if (subtype.includes('webm')) return 'WEBM';
+        if (subtype.includes('mp3')) return 'MP3';
+        if (subtype.includes('wav')) return 'WAV';
+        if (subtype.includes('ogg')) return 'OGG';
+        if (subtype.includes('m4a')) return 'M4A';
+        if (subtype.includes('pdf')) return 'PDF';
+        if (subtype.includes('zip')) return 'ZIP';
+        if (subtype.includes('rar')) return 'RAR';
+        // Return the subtype in uppercase if no specific mapping
+        return subtype.split(';')[0].split('+')[0].toUpperCase();
+      }
+    }
+    
+    return 'FILE';
   };
 
   if (loading) {
@@ -1045,6 +1263,15 @@ export default function DeliverableDetailPage() {
     <AuthWrapper>
       <Layout>
         <div className="text-white">
+          {/* File upload input - Always render for both layouts */}
+          <input
+            type="file"
+            multiple
+            onChange={handleFileSelect}
+            className="hidden"
+            id="file-upload"
+          />
+
           {/* Breadcrumb Header - Only show in complex layout */}
           {layoutPreference === 'complex' && (
             <div className="mb-6 flex items-center justify-between">
@@ -1114,13 +1341,6 @@ export default function DeliverableDetailPage() {
                     align="right"
                   />
                 </div>
-                <input
-                  type="file"
-                  multiple
-                  onChange={handleFileSelect}
-                  className="hidden"
-                  id="file-upload"
-                />
                 <Button
                   variant="secondary"
                   size="sm"
@@ -1223,6 +1443,12 @@ export default function DeliverableDetailPage() {
                     {/* Image Section */}
                     <div className="px-4 pt-4">
                       <div className="aspect-square bg-gray-700 relative overflow-hidden rounded-3xl flex items-center justify-center p-6">
+                        {/* Version indicator icon */}
+                        {filesWithVersions.has(file.id) && (
+                          <div className="absolute top-2 left-2 z-10 bg-gray-900 rounded-md p-1.5">
+                            <Layers className="w-3 h-3 text-white" />
+                          </div>
+                        )}
                         {file.file_type.startsWith('image/') ? (
                           <>
                             {(imageLoadStates[file.id] === 'loading' || imageLoadStates[file.id] === undefined) && (
@@ -1258,9 +1484,55 @@ export default function DeliverableDetailPage() {
                               onLoadStart={() => handleImageStartLoad(file.id)}
                             />
                           </>
+                        ) : file.file_type.startsWith('video/') ? (
+                          <>
+                            {(imageLoadStates[file.id] === 'loading' || imageLoadStates[file.id] === undefined) && (
+                              <div className="absolute inset-0 flex items-center justify-center bg-gray-700 rounded-3xl z-10">
+                                <Loader2 className="w-8 h-8 text-gray-400 animate-spin" />
+                              </div>
+                            )}
+                            <video
+                              src={file.file_url}
+                              className={`max-w-full max-h-full object-contain transition-opacity duration-300 ${
+                                (imageLoadStates[file.id] === 'loading' || imageLoadStates[file.id] === undefined) ? 'opacity-0' : 'opacity-100'
+                              }`}
+                              muted
+                              preload="metadata"
+                              onLoadedMetadata={() => {
+                                handleImageLoad(file.id);
+                                setNewlyUploadedFiles(prev => {
+                                  const newSet = new Set(prev);
+                                  newSet.delete(file.id);
+                                  return newSet;
+                                });
+                                setTimeout(() => {
+                                  setIsAddingNewFile(false);
+                                }, 40);
+                              }}
+                              onError={() => {
+                                handleImageError(file.id);
+                                setNewlyUploadedFiles(prev => {
+                                  const newSet = new Set(prev);
+                                  newSet.delete(file.id);
+                                  return newSet;
+                                });
+                              }}
+                              onLoadStart={() => handleImageStartLoad(file.id)}
+                            />
+                            {/* Video icon overlay */}
+                            <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-20">
+                              <div className="bg-black/60 rounded-full p-2">
+                                <Play className="w-6 h-6 text-white fill-white" />
+                              </div>
+                            </div>
+                          </>
+                        ) : file.file_type.startsWith('audio/') ? (
+                          <div className="w-full h-full flex items-center justify-center">
+                            <AudioLines className="w-8 h-8 text-gray-400" />
+                          </div>
                         ) : (
                           <div className="w-full h-full flex items-center justify-center">
-                            <svg className="w-12 h-12 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
+                            <svg className="w-8 h-8 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
                               <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clipRule="evenodd" />
                             </svg>
                           </div>
@@ -1285,7 +1557,7 @@ export default function DeliverableDetailPage() {
                         </h3>
                       </div>
                       <p className="text-xs text-gray-400 truncate mt-0.5">
-                        {getFileTypeDisplay(file.file_type)} • {formatFileSize(file.file_size)}
+                        {getFileTypeDisplay(file.file_type, file.name)} • {formatFileSize(file.file_size)}
                       </p>
                     </div>
                   </Card>
